@@ -44,6 +44,9 @@ skiplistNode *nodeCreate(int level, int64_t score, const char *val) {
     return node;
 }
 
+/**
+ * 创建并初始化一个skiplist
+ */
 skiplist *skiplistCreate() {
     int i;
     skiplist *sl;
@@ -59,6 +62,12 @@ skiplist *skiplistCreate() {
     sl->maxLevel = 0;
 
     return sl;
+}
+
+void addNode(skiplist *sl, int64_t score, const char *val) {
+    int level = randomLevel();
+    skiplistNode *node = nodeCreate(level, score, val);
+    
 }
 
 
