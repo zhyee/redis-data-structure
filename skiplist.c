@@ -11,6 +11,9 @@ typedef struct skiplistLevel skiplistLevel;
 typedef struct skiplistNode skiplistNode;
 typedef struct skiplist skiplist;
 
+skiplistNode *getNodeByVal(skiplist *sl, const char *val);
+
+
 struct skiplistLevel {
     skiplistNode *forward;
     unsigned int span;
@@ -30,6 +33,7 @@ struct skiplist {
     int maxLevel;
 };
 
+
 int randomLevel(void) {
     int level = 1;
     while ((random() & 0xFFFF) < (0xFFFF / 4)) {
@@ -44,6 +48,12 @@ skiplistNode *nodeCreate(int level, int64_t score, const char *val) {
     node->score = score;
     node->lsize = level;
     return node;
+}
+
+void nodeFree(skiplistNode *node) {
+    if (node != NULL) {
+        free(node);
+    }
 }
 
 /**
@@ -107,25 +117,16 @@ void addNode(skiplist *sl, int64_t score, const char *val) {
 }
 
 void rmNode(skiplist *sl, const char *val) {
-    skiplistNode *cNode, *nNode;
-    cNode = sl->head->level[0].forward;
-    while(cNode != NULL) {
-        if (strcmp(cNode->val, val) == 0) {
-            break;
-        }
-        cNode = cNode->level[0].forward;
-    }
-    if (cNode != NULL && strcmp(cNode->val, val) != 0) {
-        return;
-    }
-
-        printf("score: %d\n", cNode->backward->score);
+    skiplistNode *cNode, *pNode;
+    cNode = getNodeByVal(sl, val);
 
     int i;
+    pNode = sl->head;
     for(i = cNode->lsize - 1; i >= 0; i--) {
-        cNode->backward->level[i].forward = cNode->level[i].forward;
-        printf("score: %d\n", cNode->backward->level[i].forward->score);
-        printf("score: %d\n", sl->head->score);
+        while(pNode->level[i].forward != NULL && pNode->level[i].forward != cNode) {
+            pNode = pNode->level[i].forward;
+        }
+        pNode->level[i].forward = cNode->level[i].forward;
     }
     if (cNode->level[0].forward != NULL) {
          cNode->level[0].forward->backward = cNode->backward;
@@ -138,6 +139,32 @@ void rmNode(skiplist *sl, const char *val) {
             }
         }
         sl->maxLevel = i + 1;
+    }
+
+    nodeFree(cNode);
+}
+
+
+skiplistNode *getNodeByVal(skiplist *sl, const char *val){
+        skiplistNode *cNode;
+        cNode = sl->head->level[0].forward;
+        while(cNode != NULL) {
+                if (strcmp(cNode->val, val) == 0) {
+                        break;
+                }
+                cNode = cNode->level[0].forward;
+        }
+        if (cNode != NULL && strcmp(cNode->val, val) != 0) {
+                return NULL;
+        }
+
+        return cNode;
+}
+
+int64_t getScoreByVal(skiplist *sl, const char *val) {
+    skiplistNode *node = getNodeByVal(sl, val);
+    if (node != NULL) {
+        return node->score;
     }
 }
 
@@ -159,6 +186,9 @@ void var_dump(skiplist *sl) {
 
 
 int main(){
+
+        
+
         skiplist *sl = skiplistCreate();
         addNode(sl, 99, "hello-99");
         addNode(sl, 12, "hello-12");
@@ -172,13 +202,16 @@ int main(){
         addNode(sl, 999, "hello-999");
         var_dump(sl);
 
-//        rmNode(sl, "hello-99");
+        rmNode(sl, "hello-9");
         rmNode(sl, "hello-0");
 
         var_dump(sl);
 
-//        rmNode(sl, "hello-12");
-//        var_dump(sl);
+        rmNode(sl, "hello-12");
+        var_dump(sl);
+
+        printf("score: %ld\n", getScoreByVal(sl, "hello-1888"));
+    
 
     return 0;
 }
