@@ -15,6 +15,7 @@ typedef struct intset {
 } intset;
 
 void var_dump(intset *is);
+int64_t getValByPos(const intset *is, uint32_t pos);
 
 intset *intsetNew() {
     intset *is = malloc(sizeof(intset));
@@ -39,21 +40,26 @@ uint32_t getEncoding(int64_t ele) {
 int intsetSearch(intset *is, int64_t ele, uint32_t *pos) {
     int i;
     uint32_t encoding = getEncoding(ele);
-    if (encoding > is->encoding || is->length == 0) {
-        *pos = is->length;
+
+    if (is->length == 0) {
+        *pos = 0;
         return -1;
     }
 
-    uint32_t pos_min = 0, pos_max = is->length - 1, pos_bin;
-
-    int64_t binele;    
-    
-    while(pos_min <= pos_max) {
-        if (pos_min == pos_max) {
-            *pos = pos_min;
+    if (encoding > is->encoding) {
+        if (ele > getValByPos(is, is->length - 1)) {
+            *pos = is->length;
+        } else {
+            *pos = 0;
         }
+        return -1;
+    }
+
+    int64_t pos_min = 0, pos_max = is->length - 1, pos_bin, binele;
+    
+    while(pos_min < pos_max) {
         pos_bin = pos_min + (pos_max - pos_min) / 2;
-        binele = is->elements[pos_bin];
+        binele = getValByPos(is, pos_bin);
         if (ele < binele) {
             pos_max = pos_bin - 1;
         } else if (ele > binele) {
@@ -64,8 +70,17 @@ int intsetSearch(intset *is, int64_t ele, uint32_t *pos) {
         }
     }
 
-
-          printf("pos = %u\n", pos);
+    if (pos_min == pos_max) {
+        binele = getValByPos(is, pos_min);
+        if (ele > binele) {
+            *pos = pos_min + 1;
+        } else if (ele < binele) {
+            *pos = pos_min;
+        } else {
+            *pos = pos_min;
+            return 0;
+        }
+    }
 
     return -1;
 }
@@ -123,7 +138,7 @@ int setValByPos(intset *is, uint32_t pos, int64_t val, uint32_t encoding) {
 }
 
 /**
- * 返回NULL 加入失败
+ * 返回元素
  */
 intset *intsetAdd(intset *is, int64_t ele) {
     int ret, i;
@@ -140,41 +155,51 @@ intset *intsetAdd(intset *is, int64_t ele) {
     ret = intsetSearch(is, ele, &pos);
 
     if (ret == 0) {
-        return NULL;
+        return is;
     }
 
     is = realloc(is, sizeof(intset) + elesize * (is->length + 1));
 
-    if (is->length == 0) {
-           setValByPos(is, pos, ele, elesize);
-    } else {
-        if (elesize > is->encoding) {
+    if (elesize > is->encoding) {
             for(i = is->length - 1; i>=0; i--) {
                 tmp = getValByPos(is, i);
                 setValByPos(is, i, tmp, elesize);
-             }
-        }
+            }
     }
-
 
     is->encoding = elesize;
-    if (is->length > 0) {        
+    is->length ++;
+    if (is->length > 1) {        
         int64_t posval = getValByPos(is, pos);
-        if (ele < posval) {
-            if (pos + 1 < is->length) {
-                memmove(&is->elements[is->encoding * (pos+1)], &is->elements[is->encoding * pos], (is->length - pos -1) * is->encoding);
-            }
-            setValByPos(is, pos, ele, is->encoding);
-        } else {
-                if (pos + 2 < is->length) {
-                     memmove(&is->elements[is->encoding * (pos + 2)], &is->elements[is->encoding * (pos + 1)], is->length - pos - 2);
-                }
-               setValByPos(is, pos+1, ele, is->encoding);
+        if (pos < is->length - 1) {
+            memmove(&is->elements[is->encoding * (pos+1)], &is->elements[is->encoding * pos], (is->length - pos -1) * is->encoding);
         }
     }
-
-    is->length ++;
+    setValByPos(is, pos, ele, is->encoding);
     return is;
+}
+
+/*
+ * 删除元素
+ */
+intset *intsetRemove(intset *is, int64_t ele) {
+    uint32_t pos;
+    int ret;
+    ret = intsetSearch(is, ele, &pos);
+    if (ret != 0) {
+        return is;   //未找到该元素
+    }
+
+    if (pos < is->length - 1) {
+        memmove(&is->elements[is->encoding * pos], &is->elements[is->encoding * (pos + 1)], is->encoding * (is->length - pos - 1));
+    }
+
+    is->length --;
+
+    is = realloc(is, sizeof(is) + is->length * is->encoding);
+
+    return is;
+
 }
 
 void var_dump(intset *is) {
@@ -195,7 +220,27 @@ int main() {
     var_dump(is);
     is = intsetAdd(is, -123);
     var_dump(is);
+    is = intsetAdd(is, 478);
+    var_dump(is);
+    is = intsetAdd(is, 123);
+    var_dump(is);
 
+    is = intsetAdd(is, 123456);
+    var_dump(is);
+    is = intsetAdd(is, -123456);
+    var_dump(is);
+    is = intsetAdd(is, -123456789);
+    var_dump(is);
+    is = intsetAdd(is, -123456789011111);
+    var_dump(is);
+    is = intsetAdd(is, 0);
+    var_dump(is);
+    is = intsetRemove(is, 123);
+    var_dump(is);
+    is = intsetRemove(is, 123456);
+    var_dump(is);
+    is = intsetRemove(is, -123456789011111);
+    var_dump(is);
     return 0;
 
 }
